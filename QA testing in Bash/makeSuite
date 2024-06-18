@@ -1,0 +1,57 @@
+#!/bin/bash
+
+if [[ $# -eq 0 ]]; then
+        echo "Usage: makeSuite -s [path/to/stemfile] -p [path/to/correct_program] [-a -e]";
+        exit 0;
+fi;
+
+POSITIONAL_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help)
+      echo "Usage: makeSuite -s [path/to/stemfile] -p [path/to/correct_program] [-a -e]";
+          exit 0;
+      ;;
+    -s|--suite|--stem)
+      STEMFILE="$2"
+      shift # past argument
+      shift # past value
+      ;;
+        -p|--program|--prog)
+      PROGRAM="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -a|--args)
+      ARGS=1
+      shift # past argument
+      ;;
+        -e|--error)
+      ERROR=1
+      shift # past argument
+      ;;
+    -*|--*)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1") # save positional arg
+      shift # past argument
+      ;;
+  esac
+done
+
+set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters
+
+if [[ $ARGS -eq 1 ]]; then
+        for stem in $(cat $STEMFILE); do
+                $PROGRAM $(cat $stem.args) < $stem.in 1>$stem.exp 2>$stem.err;
+    echo "Exit code: $?" >> $stem.err;
+        done;
+else
+        for stem in $(cat $STEMFILE); do
+                $PROGRAM < $stem.in 1>$stem.exp 2>$stem.err;
+    echo "Exit code: $?" >> $stem.err;
+        done;
+fi;

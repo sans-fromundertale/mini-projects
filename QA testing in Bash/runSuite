@@ -1,0 +1,118 @@
+#!/bin/bash
+
+if [[ $# -eq 0 ]]; then
+        echo "Usage: runSuite -s [suitefile] -p [program] [-e -d]";
+        exit 0;
+fi;
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help)
+      echo "Usage: makeSuite -s [path/to/stemfile] -p [path/to/correct_program] [-a -e]";
+          exit 0;
+      ;;
+    -s|--suite|--stem)
+      suitefile="$2"
+      shift # past argument
+      shift # past value
+      ;;
+        -p|--program|--prog)
+      program="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -e|--err)
+      error="t"
+      shift # past argument
+      ;;
+        -d|--diff|--short)
+      shorttests="t"
+      shift # past argument
+      ;;
+    -*|--*)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+    *)
+      echo "Invalid argument $1"
+      exit 1 # past argument
+      ;;
+  esac
+done
+
+
+
+runProgram () {
+        stem=$1
+        if [[ -r $stem.in && -r $stem.args ]]; then
+                ./$program $(cat $stem.args) < $stem.in;
+        elif [ -r $stem.in ]; then
+                ./$program < $stem.in;
+        elif [ -r $stem.args ]; then
+                ./$program $(cat $stem.args);
+        else
+                ./$program;
+        fi;
+}
+
+
+testsFailed=0;
+for stem in $(cat $suitefile); do
+        TEMPFILE=$(mktemp);
+        TEMPERR=$(mktemp);
+        runProgram $stem 1> $TEMPFILE 2> $TEMPERR;
+        echo "Exit code: $?" >> $TEMPERR;
+        diff $TEMPFILE $stem.exp > /dev/null;
+        if [ $? -ne 0 ]; then
+                echo "Test failed: $stem";
+                echo "Args:";
+                if [ -r $stem.args ]; then
+                        cat $stem.args;
+                fi;
+                echo "Input:";
+                if [ -r $stem.in ]; then
+                        cat $stem.in;
+                fi;
+                if [[ $shorttests == "t" ]]; then
+                        diff $TEMPFILE $stem.exp;
+                else
+                        echo "Expected:";
+                        cat $stem.exp;
+                        echo "Actual:";
+                        runProgram $stem 2>/dev/null;
+                fi;
+                let "testsFailed+=1";
+                echo "output: $stem" > testsfailed
+        fi;
+        if [[ error == "t" ]]; then
+                diff $TEMPERR $stem.err > /dev/null;
+                if [ $? -ne 0 ]; then
+                        echo "Test failed: $stem";
+                        echo "Args:";
+                        if [ -r $stem.args ]; then
+                                cat $stem.args;
+                        fi;
+                        echo "Input:";
+                        if [ -r $stem.in ]; then
+                                cat $stem.in;
+                        fi;
+                        if [[ $shorttests == "t" ]]; then
+                                diff $TEMPERR $stem.err;
+                        else
+                                echo "Expected error:";
+                                cat $stem.err;
+                                echo "Actual error:";
+                                runProgram $stem 1>/dev/null 2>&1;
+                                echo "Exit code: $?";
+                        fi;
+                        let "testsFailed+=1";
+                        echo "error: $stem" > testsfailed
+                fi;
+        fi;
+done;
+
+if [[ testsFailed -eq 0 ]]; then
+        echo "All tests passed.";
+else
+        echo "$testsFailed tests failed:";  cat testsfailed;
+fi;
